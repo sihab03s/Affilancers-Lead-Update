@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Affilancers Lead Update</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg: #0f172a; --card: #1e293b; --accent: #10b981;
+            --text: #f3f4f6; --border: #334155; --danger: #ef4444; --warning: #f59e0b;
+        }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 0; display: flex; justify-content: center; flex-direction: column; align-items: center; min-height: 100vh; }
+         /* 🕸️ *** NEW: Canvas Styling for Network Effect *** */
+        #networkCanvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1; /* কন্টেন্টের পেছনে থাকবে */
+            pointer-events: none; /* ক্লিকের পথে বাধা হবে না */
+        }
+        
+         /* 🔐 Login Screen Styles */
+        #loginScreen { 
+            position: relative; width: 480px; height: 350px; 
+            margin-top: auto; margin-bottom: 0;
+            display: flex; justify-content: center; align-items: center;
+        }
+
+        /* ভেতরে লুকানো লগইন বক্স */
+        .login-content-inner {
+            position: absolute; width: 85%; padding: 35px;
+            background: rgba(15, 23, 42, 0.95); border-radius: 25px;
+            border: 1px solid var(--border); text-align: center;
+            z-index: 1; transition: 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* স্লাইডিং দরজা (Top & Bottom) */
+        .door {
+            position: absolute; left: 0; width: 100%; height: 50%;
+            background: var(--card); border: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 5; transition: transform 0.8s cubic-bezier(0.7, 0, 0.3, 1);
+            overflow: hidden; backdrop-filter: blur(12px);
+        }
+
+        /* ✅ উপরের দরজায় WELCOME */
+        .door.top { top: 0; border-radius: 30px 30px 0 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .door.top h1 { color: var(--text); font-size: 1.5rem; letter-spacing: 8px; opacity: 0.9; }
+
+        /* ✅ নিচের দরজায় AFFILANCERS */
+        .door.bottom { bottom: 0; border-radius: 0 0 30px 30px; border-top: none; }
+        .door.bottom h1 { color: var(--accent); font-size: 2.2rem; letter-spacing: 4px; text-shadow: 0 0 15px rgba(16, 185, 129, 0.3); }
+
+        .door h1 { margin: 0; font-weight: 800; text-transform: uppercase; }
+
+        /* মাঝখানের ছোট গ্লোয়িং বাটন */
+        .open-prompt {
+            position: absolute; z-index: 10;
+            background: var(--bg); color: var(--accent);
+            padding: 5px 20px; border-radius: 20px;
+            font-size: 0.7rem; font-weight: 600; letter-spacing: 3px;
+            border: 1px solid var(--accent);
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+
+        /* মাউস নিলে দরজা খোলার অ্যানিমেশন */
+        #loginScreen:hover .door.top { transform: translateY(-100%); }
+        #loginScreen:hover .door.bottom { transform: translateY(100%); }
+        #loginScreen:hover .open-prompt { opacity: 0; }
+        .login-input { width: 100%; padding: 15px; margin-bottom: 15px; background: #0f172a; border: 1px solid var(--border); border-radius: 12px; color: white; text-align: center; font-size: 1rem; box-sizing: border-box; outline: none; transition: 0.3s; text-transform: uppercase; }
+        .login-input:focus { border-color: var(--accent); }
+        
+        .login-btn { width: 100%; padding: 15px; background: var(--accent); border: none; border-radius: 12px; font-weight: 800; cursor: pointer; text-transform: uppercase; transition: 0.3s; color: #000; margin-top: 10px; }
+        .login-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(16, 185, 129, 0.2); }
+        #errorMsg { color: var(--danger); font-size: 0.85rem; margin-top: 15px; display: none; background: rgba(239, 68, 68, 0.1); padding: 10px; border-radius: 8px; }
+
+        /* 📊 Main App Styles (Hidden by default) */
+        #mainApp { display: none; width: 100%; max-width: 900px; margin: 0 auto; padding: 20px; flex-direction: column; box-sizing: border-box; flex-direction: column; animation: slideUp 0.5s ease; }
+        
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Input & Dropdown text UPPERCASE */
+        input#newNameInput, select#memNameDropdown, .member-name-text {
+            text-transform: uppercase;
+        }
+        
+        /* Clickable Header */
+        .header-main { text-align: center; margin-bottom: 25px; padding: 15px; border-radius: 12px; transition: 0.3s; cursor: pointer; border: 2px solid transparent; }
+        .header-main:hover { background: var(--card); border-color: var(--accent); }
+        .header-main h1 { margin: 0; letter-spacing: 5px; font-weight: 800; color: var(--accent); font-size: 2.2rem; }
+
+        /* Settings */
+        .settings-btn { font-size: 0.8rem; color: var(--accent); background: none; border: none; cursor: pointer; text-decoration: underline; margin-bottom: 10px; padding: 0; }
+        .settings-panel { display: none; background: var(--card); padding: 15px; border-radius: 12px; border: 1px dashed var(--accent); margin-bottom: 20px; }
+
+        /* Form Card */
+        .card-form { background: var(--card); padding: 25px; border-radius: 16px; margin-bottom: 30px; border: 1px solid var(--border); box-shadow: 0 1px 15px -3px rgba(0, 0, 0, 0.3); }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+        label { display: block; font-size: 0.7rem; color: #9ca3af; margin-bottom: 5px; text-transform: uppercase; font-weight: 600; }
+        input, select { width: 100%; padding: 12px; background: #334155; border: 1px solid var(--border); border-radius: 10px; color: white; box-sizing: border-box; font-size: 0.9rem; outline: none; }
+        
+        .btn-submit { background: var(--accent); color: #000; border: none; padding: 14px; border-radius: 10px; font-weight: 800; cursor: pointer; width: 100%; margin-top: 15px; transition: 0.3s; text-transform: uppercase; }
+        .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(16, 185, 129, 0.3); }
+
+        /* Summary Bar */
+        .summary-bar { background: #000; padding: 20px; border-radius: 24px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 30px; text-align: center; border: 2px solid var(--accent); }
+        .summary-bar h2 { margin: 0; color: var(--accent); font-size: 1.8rem; }
+        .summary-bar p { margin: 5px 0 0; opacity: 0.7; font-size: 0.65rem; text-transform: uppercase; }
+
+        /* Results Grid */
+        .grid-results { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+        .data-card { background: var(--card); border-radius: 20px; padding: 20px; border: 1px solid var(--border); transition: 0.3s; }
+        .data-card:hover { border-color: var(--accent); transform: translateY(-5px); }
+        .card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 15px; }
+        .member-ix { color: var(--accent); font-weight: 800; font-size: 0.8rem; }
+        .remove-btn { color: var(--danger); cursor: pointer; font-size: 0.65rem; border: 1px solid var(--danger); padding: 2px 6px; border-radius: 5px; background: none; }
+        
+        .metric-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.95rem; }
+        .suspend-tag { color: var(--warning); border-top: 1px solid #334155; padding-top: 8px; margin-top: 8px; font-weight: bold; }
+        .ratio-badge { margin-top: 15px; background: #0f172a; padding: 12px; border-radius: 12px; text-align: center; border-left: 4px solid var(-accent);}
+        
+        /* Footer Custom Style */
+        .footer-credit { text-align: center; margin-top: auto; padding: 20px; font-size: 0.8rem; color: #9ca3af; letter-spacing: 1px; width: 100%; box-sizing: border-box; }
+        .footer-credit span { color: var(--accent); font-weight: 700; }
+        
+        @media (max-width: 600px) { .summary-bar { grid-template-columns: 1fr 1fr; gap: 20px; } }
+    </style>
+</head>
+<body>
+<canvas id="networkCanvas"></canvas>
+<div id="loginScreen">
+        <div class="login-content-inner">
+            <h2 style="color: var(--accent); margin-bottom: 20px; font-size: 1rem; letter-spacing: 2px;">AUTHORIZATION</h2>
+            <input type="text" id="userInput" class="login-input" placeholder="USERNAME" autocomplete="off">
+            <input type="password" id="passInput" class="login-input" placeholder="PASSWORD" autocomplete="new-password">
+            <button class="login-btn" onclick="checkLogin()">LOGIN</button>
+            <p id="errorMsg" style="color: var(--danger); font-size: 0.7rem; margin-top: 10px; display: none;">❌ Invalid Username or Password!</p>
+        </div>
+
+        <div class="door top">
+            <h1>WELCOME</h1>
+        </div>
+
+        <div class="open-prompt">OPEN</div>
+
+        <div class="door bottom">
+            <h1>AFFILANCERS</h1>
+        </div>
+  </div>
+  
+    <div id="mainApp">
+    <div class="header-main" onclick="location.reload()"><h1>AFFILANCERS</h1></div>
+    <button class="settings-btn" onclick="toggleSettings()">⚙️ Manage Member Names</button>
+    <div id="settingsPanel" class="settings-panel">
+        <div style="display:flex; gap:10px;">
+            <input type="text" id="newNameInput" placeholder="Enter name">
+            <button class="btn-submit" style="margin:0; width:80px; padding:10px;" onclick="addNewMemberName()">ADD</button>
+        </div>
+    </div>
+
+    <div class="card-form">
+        <div class="form-grid">
+            <div><label>IX ID</label>
+                <select id="ixId">
+                    <option>IX-1</option><option>IX-2</option><option>IX-3</option>
+                    <option>IX-4</option><option>IX-5</option><option>IX-6</option>
+                </select>
+            </div>
+            <div><label>Member Name</label><select id="memNameDropdown"><option value="">-- Select --</option></select></div>
+            <div><label>1st Message</label><input type="number" id="impVal" placeholder="0"></div>
+            <div><label>Leads</label><input type="number" id="leadVal" placeholder="0"></div>
+            <div><label>Suspend Profiles</label><input type="number" id="susVal" placeholder="0"></div>
+        </div>
+        <button class="btn-submit" id="submitBtn" onclick="submitToFirebase()">SUBMIT</button>
+    </div>
+
+    <div style="margin-bottom: 25px; display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+        <input type="date" id="reportDate" onchange="loadFromFirebase()" style="width: auto;">
+        <h3 id="dateRangeDisplay" style="margin:0; color:var(--accent); flex-grow: 1;">09-10/04/2026</h3>
+        <button class="btn-submit" style="width: auto; margin:0; padding: 10px 20px; background: #334155; color:white; border:1px solid var(--accent);" onclick="copyFormattedReport()">📋 Copy Group Report</button>
+    </div>
+
+    <div class="summary-bar">
+        <div><h2 id="sumImp">0</h2><p>Impressions</p></div>
+        <div><h2 id="sumLead">0</h2><p>Leads</p></div>
+        <div><h2 id="sumRatio">0%</h2><p>Conversion</p></div>
+        <div style="color:var(--warning)"><h2 id="sumSus" style="color:var(--warning)">0</h2><p>Suspended</p></div>
+    </div>
+
+    <div class="grid-results" id="entriesBody"></div>
+</div>
+    <div class="footer-credit">
+            Affilancers LeadUpdate System ©2026 — Developed by <span>SIHAB</span>
+        </div>
+
+<script>
+    // 🕸️ *** NEW: Neural Network Animation Logic ***
+    const canvas = document.getElementById('networkCanvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+    const mouse = { x: null, y: null, radius: 150 };
+
+    window.addEventListener('mousemove', e => { mouse.x = e.x; mouse.y = e.y; });
+
+    function init() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        particles = [];
+        let numberOfParticles = (canvas.height * canvas.width) / 9000;
+        for (let i = 0; i < numberOfParticles; i++) {
+            let size = Math.random() * 2 + 1;
+            let x = Math.random() * canvas.width;
+            let y = Math.random() * canvas.height;
+            let directionX = (Math.random() * 2) - 1;
+            let directionY = (Math.random() * 2) - 1;
+            particles.push({x, y, directionX, directionY, size});
+        }
+    }
+
+    function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (let i = 0; i < particles.length; i++) {
+            let p = particles[i];
+            
+            // মাউস থেকে কণাগুলোকে দূরে সরিয়ে দেওয়ার লজিক (Repulsion)
+            let dx = mouse.x - p.x;
+            let dy = mouse.y - p.y;
+            let distance = Math.sqrt(dx*dx + dy*dy);
+            if (distance < mouse.radius) {
+                if (mouse.x < p.x && p.x < canvas.width - p.size * 10) p.x += 3;
+                if (mouse.x > p.x && p.x > p.size * 10) p.x -= 3;
+                if (mouse.y < p.y && p.y < canvas.height - p.size * 10) p.y += 3;
+                if (mouse.y > p.y && p.y > p.size * 10) p.y -= 3;
+            }
+
+            p.x += p.directionX; p.y += p.directionY;
+            if (p.x > canvas.width || p.x < 0) p.directionX = -p.directionX;
+            if (p.y > canvas.height || p.y < 0) p.directionY = -p.directionY;
+
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fillStyle = '#10b981'; ctx.fill();
+
+            // জালের মতো লাইন টানার লজিক
+            for (let j = i; j < particles.length; j++) {
+                let p2 = particles[j];
+                let dx2 = p.x - p2.x; let dy2 = p.y - p2.y;
+                let dist2 = Math.sqrt(dx2*dx2 + dy2*dy2);
+                if (dist2 < 100) {
+                    ctx.strokeStyle = `rgba(16, 185, 129, ${1 - dist2/100})`;
+                    ctx.lineWidth = 0.5; ctx.beginPath();
+                    ctx.moveTo(p.x, p.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+                }
+            }
+        }
+        requestAnimationFrame(animate);
+    }
+
+    window.addEventListener('resize', init);
+    init(); animate();
+    
+    // 🔑 ইউজার লিস্ট (এখানে আপনি নাম ও পাসওয়ার্ড বাড়াতে পারবেন)
+    const USERS = {
+          "affilancers": "1234",
+          "sihab": "0213",
+          "ibrahim": "1234",
+          "arafat": "1234",
+          "shipon": "1234",
+          
+
+}; 
+
+    function checkLogin() {
+        const u = document.getElementById('userInput').value.toLowerCase();
+        const p = document.getElementById('passInput').value;
+        const error = document.getElementById('errorMsg');
+        
+        if (USERS[u] && USERS[u] === p) {
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('mainApp').style.display = 'block';
+            document.body.style.alignItems = 'flex-start';
+            updateDropdown();
+            loadFromFirebase();
+            sessionStorage.setItem('isLoggedIn', 'true'); 
+
+          
+        showDashboard();
+        } else {
+            document.getElementById('errorMsg').style.display = 'block';
+        }
+    }
+    // ড্যাশবোর্ড দেখানোর মেইন ফাংশন (এটি আগে ছিল না)
+    function showDashboard() {
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('mainApp').style.display = 'flex';
+        document.body.style.alignItems = 'flex-start';
+        updateDropdown();
+        loadFromFirebase(); 
+    }
+    // ১. ইউজারনেম লিখে এন্টার দিলে পাসওয়ার্ড ঘরে যাবে (নতুন যোগ করা হয়েছে)
+document.getElementById('userInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        document.getElementById('passInput').focus();
+    }
+});
+
+// ২. পাসওয়ার্ড লিখে এন্টার দিলে সরাসরি লগইন হবে
+document.getElementById('passInput').addEventListener('keydown', (e) => {
+    if(e.key === 'Enter') checkLogin();
+});
+    // আপনার দেওয়া Firebase Configuration
+    const firebaseConfig = {
+        apiKey: "AIzaSyD3n2MmShTGhIr5xXnT6Tgoe3RkrGiSE48",
+        authDomain: "affilancers-lead-summary.firebaseapp.com",
+        projectId: "affilancers-lead-summary",
+        storageBucket: "affilancers-lead-summary.firebasestorage.app",
+        messagingSenderId: "511932931366",
+        appId: "1:511932931366:web:73cf2144621a3a74fbb5e7",
+        measurementId: "G-HGV1J8HP1Q",
+        databaseURL: "https://affilancers-lead-summary-default-rtdb.firebaseio.com/" // আপনার প্রোজেক্ট আইডি অনুযায়ী অটো জেনারেটেড ইউআরএল
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // *** পরিবর্তন ১: বাংলাদেশ টাইম ফিক্স ***
+    const getToday = () => {
+        return new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Dhaka',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        }).format(new Date());
+    };
+
+    document.getElementById('reportDate').value = getToday();
+
+    // *** পরিবর্তন এখানে: Enter Key Logic ***
+    document.getElementById('impVal').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('leadVal').focus();
+        }
+    });
+
+    document.getElementById('leadVal').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('susVal').focus();
+        }
+    });
+
+    document.getElementById('susVal').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            submitToFirebase();
+        }
+    });
+
+    function toggleSettings() {
+        const p = document.getElementById('settingsPanel');
+        p.style.display = p.style.display === 'block' ? 'none' : 'block';
+    }
+
+    function updateDropdown() {
+        const d = document.getElementById('memNameDropdown');
+        const names = JSON.parse(localStorage.getItem('aff_members')) || [];
+        d.innerHTML = '<option value="">-- Select --</option>' + names.map(n => `<option value="${n}">${n}</option>`).join('');
+    }
+
+    function addNewMemberName() {
+        const i = document.getElementById('newNameInput');
+        let names = JSON.parse(localStorage.getItem('aff_members')) || [];
+        if (i.value && !names.includes(i.value.trim())) {
+            names.push(i.value.trim());
+            localStorage.setItem('aff_members', JSON.stringify(names));
+            i.value = ''; updateDropdown();
+        }
+    }
+
+    // *** সংশোধিত সাবমিট ফাংশন (Duplicate Protection) ***
+    async function submitToFirebase() {
+        const date = document.getElementById('reportDate').value;
+        const ix = document.getElementById('ixId').value;
+        const name = document.getElementById('memNameDropdown').value;
+        
+        if(!name) return alert("Please select a name!");
+        if(date !== getToday()) return alert("Submit today's data only!");
+
+        // ১. আগে চেক করে দেখা হচ্ছে ওই IX আইডি আজকের তারিখে অলরেডি আছে কি না
+        const snapshot = await db.ref('reports/' + date + '/' + ix).once('value');
+        if (snapshot.exists()) {
+            return alert("" + ix + " Already submitted, please remove first.");
+        }
+
+        // ২. না থাকলে তবেই সেভ হবে
+        const entry = {
+            name: name,
+            imp: parseInt(document.getElementById('impVal').value) || 0,
+            lead: parseInt(document.getElementById('leadVal').value) || 0,
+            sus: parseInt(document.getElementById('susVal').value) || 0,
+            timestamp: Date.now() // ১ ঘণ্টা ডিলিট লিমিটের জন্য সময় সেভ করা হলো
+        };
+
+        db.ref('reports/' + date + '/' + ix).set(entry, (err) => {
+            if(!err) {
+                document.getElementById('memNameDropdown').value = '';
+                document.getElementById('impVal').value = '';
+                document.getElementById('leadVal').value = '';
+                document.getElementById('susVal').value = '';
+            }
+        });
+    }
+
+    // ক্লাউড থেকে ডাটা লোড করা (Real-time)
+    function loadFromFirebase() {
+        const date = document.getElementById('reportDate').value;
+        const body = document.getElementById('entriesBody');
+        
+        // তারিখের ফরম্যাট (গতকালের তারিখ - আজকের তারিখ)
+        const d = new Date(date);
+        const prev = new Date(d); prev.setDate(d.getDate() - 1);
+        const f = (dt) => ("0" + dt.getDate()).slice(-2);
+        const month = ("0" + (d.getMonth() + 1)).slice(-2);
+        document.getElementById('dateRangeDisplay').innerText = `${f(prev)}-${f(d)}/${month}/${d.getFullYear()}`;
+
+        db.ref('reports/' + date).on('value', (snap) => {
+            const data = snap.val() || {};
+            body.innerHTML = "";
+            let tI=0, tL=0, tS=0;
+            
+            // IX ID অনুযায়ী অটো সর্টিং (IX-1, IX-2...)
+            const now = Date.now();
+            const sortedKeys = Object.keys(data).sort((a,b) => a.localeCompare(b, undefined, {numeric: true}));
+            
+            sortedKeys.forEach(ix => {
+                const item = data[ix];
+                tI += item.imp; tL += item.lead; tS += (item.sus || 0);
+                const r = item.imp > 0 ? Math.round((item.lead / item.imp) * 100) : 0;
+                const canRemove = item.timestamp && (now - item.timestamp < 3600000);
+                
+                body.innerHTML += `
+                    <div class="data-card">
+                        <div class="card-header">
+                            <div><span class="member-ix">${ix}</span><div style="font-weight:700; font-size:1.1rem;">${item.name.toUpperCase()}</div></div>
+                            ${canRemove && date === getToday() ? `<button class="remove-btn" onclick="deleteEntry('${ix}')">Remove</button>` : ''}
+                        </div>
+                        <div class="metric-row"><span style="color:#9ca3af">1st Message:</span><span style="font-weight:700;">${item.imp}</span></div>
+                        <div class="metric-row"><span style="color:#9ca3af">Lead Collect:</span><span style="font-weight:700;">${item.lead}</span></div>
+                        <div class="metric-row suspend-tag"><span>Suspended:</span><span>${item.sus || 0}</span></div>
+                        <div class="ratio-badge"><div style="font-size:1.6rem; font-weight:800; color:var(--accent);">${r}%</div></div>
+                    </div>`;
+            });
+
+            document.getElementById('sumImp').innerText = tI;
+            document.getElementById('sumLead').innerText = tL;
+            document.getElementById('sumSus').innerText = tS;
+            document.getElementById('sumRatio').innerText = (tI > 0 ? Math.round((tL/tI)*100) : 0) + "%";
+        });
+    }
+
+    function deleteEntry(ix) {
+        if(confirm("REMOVE " + ix + " Are you sure ?")) {
+            db.ref('reports/' + getToday() + '/' + ix).remove();
+        }
+    }
+
+    function copyFormattedReport() {
+        const range = document.getElementById('dateRangeDisplay').innerText;
+        const date = document.getElementById('reportDate').value;
+        db.ref('reports/' + date).once('value', (snap) => {
+            const data = snap.val() || {};
+            if(!data) return alert("No data to copy!");
+
+            let text = `AFFILANCERS  DAILY  REPORT\nDate: ${range}\n`;
+            text += `╠═════════════════╣\n\n`;
+
+            let tI=0, tL=0, tS=0;
+            Object.keys(data).sort((a,b) => a.localeCompare(b, undefined, {numeric: true})).forEach(ix => {
+                const item = data[ix];
+                const r = item.imp > 0 ? Math.round((item.lead/item.imp)*100) : 0;
+                tI += item.imp; tL += item.lead; tS += item.sus;
+                text += `   ${ix} |   ${item.name.toUpperCase()}\n`;
+            text += `	 1st Message: ${item.imp}\n`;
+            text += `	 Lead Collect: ${item.lead}\n`;
+            text += `	 Convert Ratio: ${r}%\n`;
+            text += `	 Suspended ID: ${item.sus}\n\n`;
+            });
+
+            const totalRatio = tI > 0 ? Math.round((tL / tI) * 100) : 0;
+            text += `╔══════════════════╗\n`;
+            text += `	Total Impression: ${tI}\n`;
+            text += `	Total Lead: ${tL}\n`;
+            text += `	Avg Conversion: ${totalRatio}%\n`;
+            text += `	Total Suspended ID: ${tS}\n`;
+            text += `╚══════════════════╝\n`;
+
+            navigator.clipboard.writeText(text).then(() => (""));
+        });
+    }
+
+    // এই কোডটি স্ক্রিপ্টের একদম শেষে পাবেন
+	window.onload = () => {
+         // ১. সরাসরি ফিল্ড দুটিকে ক্লিয়ার করা
+        document.getElementById('userInput').value = "";
+        document.getElementById('passInput').value = "";
+    // এটি চেক করে যে আপনি আগে লগইন করেছিলেন কি না
+    if (sessionStorage.getItem('isLoggedIn') === 'true') {
+        showDashboard(); // লগইন করা থাকলে সরাসরি ড্যাশবোর্ড দেখাবে
+    }
+};
+</script>
+
+</body>
+</html>
